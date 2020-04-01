@@ -1,0 +1,21 @@
+{% if vault_backend == 'Azure' %}
+storage "azure" {
+  accountName  = "{{ vault_azurestorageaccount }}"
+  accountKey   = "{{ vault_azurestoragekey }}"
+  container    = "{{ vault_azurestoragecontainer }}"
+  max_parallel = 512
+}
+{% endif %}
+
+{% if vault_backend == 'File' %}
+storage "file" {
+  path = "{{ vault_storagepath }}"
+}
+{% endif %}
+
+listener "tcp" {
+	address     = "127.0.0.1:8200"
+  {# TODO: Make tls enabled and set to global access #}
+	tls_disable = 1
+
+}

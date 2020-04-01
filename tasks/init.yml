@@ -1,0 +1,58 @@
+- name: VAULT | Init | Initalize Vault
+  shell: >
+    vault operator init -key-shares=5 -key-threshold=3 -format json
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+  register: vault_init_results
+  become: false
+
+- name: VAULT | Init | Parse Output
+  set_fact:
+    vault_init_parsed: "{{ vault_init_results.stdout | from_json }}"
+  become: false
+
+- name: VAULT | Azure | Write unseal
+  azure_rm_keyvaultsecret:
+    secret_name: unsealkey-{{ item.0 }}
+    secret_value: "{{ item.1 }}"
+    keyvault_uri: "{{ Keyvaulturi }}"
+  delegate_to: localhost
+  become: false
+  with_indexed_items: "{{ vault_init_parsed.unseal_keys_hex }}"
+  when: vault_backend == 'Azure'
+
+- name: Vault | Directories | Create Key Directories
+  file:
+    path: '{{ item }}'
+    state: directory
+  delegate_to: localhost
+  with_items:
+    - "{{ unseal_keys_dir_output }}"
+    - "{{ root_token_dir_output }}"
+  when: vault_backend == 'File'
+
+- name: VAULT | Azure | Write rootkey
+  azure_rm_keyvaultsecret:
+    secret_name: rootkey
+    secret_value: "{{ vault_init_parsed.root_token }}"
+    keyvault_uri: "{{ Keyvaulturi }}"
+  become: false
+  delegate_to: localhost
+  when: vault_backend == 'Azure'
+
+- name: VAULT | File | Write rootkey
+  copy:
+    content: "{{ vault_init_parsed.root_token }}"
+    dest: "{{root_token_dir_output}}/rootkey"
+  delegate_to: localhost
+  become: false
+  when: vault_backend == 'File'
+
+- name: VAULT | File | Write unseal
+  copy:
+    dest: "{{ unseal_keys_dir_output }}/unseal_key_{{ item.0 }}"
+    content: "{{ item.1 }}"
+  with_indexed_items: "{{ vault_init_parsed.unseal_keys_hex }}"
+  delegate_to: localhost
+  become: false
+  when: vault_backend == 'File'

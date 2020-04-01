@@ -1,0 +1,118 @@
+- name: Vault | Validate | Storage account name
+  debug: 
+    msg: "vault_azurestorageaccount is required"
+  when: vault_backend == 'Azure'
+  failed_when: vault_azurestorageaccount is not defined
+
+- name: Vault | Validate | Storage Key
+  debug: 
+    msg: "vault_azurestoragekey is required"
+  when: vault_backend == 'Azure'
+  failed_when: vault_azurestoragekey is not defined
+
+- name: Vault | User | Creating vault user group
+  group: 
+    name: "{{ vault_group }}"
+  become: true
+
+- name: Vault | User | Creating vault user
+  user:
+    name: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    system: yes
+    shell: "/sbin/nologin"
+    comment: "vault nologin User"
+    createhome: "no"
+    state: present
+
+- name: Vault | PREREQ | Install required software
+  package:
+    name: "{{ item }}"
+    update_cache: yes
+  with_items: "{{ required_packages }}"
+  become: yes
+
+- name: Vault | get current version
+  shell: >
+    vault --version
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+  ignore_errors: yes
+  changed_when: false
+  become: false
+  register: current_vault
+
+- name: Vault | Install | Download binary
+  get_url:
+    url: https://releases.hashicorp.com/vault/{{vault_version}}/vault_{{vault_version}}_linux_amd64.zip
+    dest: /tmp/vault_{{vault_version}}_linux_amd64.zip
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0755
+    checksum: "{{vault_checksum}}"
+  register: vault_download
+  when: current_vault is failed or vault_version not in current_vault.stdout 
+
+- name: Vault | Install | Unzip Archive
+  unarchive:
+    src: "{{ vault_download.dest }}"
+    dest: /usr/local/bin
+    copy: no
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0755
+  when: current_vault is failed or vault_version not in current_vault.stdout 
+
+- name: Vault | SELinux | Allow mlock
+  capabilities:
+    path: /usr/local/bin/vault
+    capability: cap_ipc_lock+ep
+    state: present
+
+- name: Vault | Config | Install Service
+  template:
+    src: etc_systemd_system_vault.service.j2
+    dest: /etc/systemd/system/vault.service
+    owner: root
+    group: root
+  notify: systemd_reload
+
+- name: Vault | Directories | Create Backend
+  file:
+    path: '{{ item }}'
+    state: directory
+    user: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0759
+  with_items:
+    - "{{ vault_storagepath }}"
+  when: vault_backend == 'File'
+
+- name: Vault | Config | Deploy Configuration
+  template:
+    src: vault.hcl.j2
+    dest: "{{ vault_config_path }}"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: 0640
+
+- name: Vault | Service | Start and Enable
+  service:
+    name: vault
+    state: started
+    enabled: yes
+
+- name: Vault | INIT | get status
+  shell: >
+    vault status
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+  ignore_errors: yes
+  changed_when: false
+  become: false
+  register: vault_status
+
+- name: Vault | Initialize
+  include: "init.yml"
+  when: init and "Initialized        false" in vault_status.stdout
+  
