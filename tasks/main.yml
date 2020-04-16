@@ -1,14 +1,17 @@
 - name: Vault | Validate | Storage account name
-  debug: 
-    msg: "vault_azurestorageaccount is required"
-  when: vault_backend == 'Azure'
-  failed_when: vault_azurestorageaccount is not defined
+  assert:
+    that:
+      vault_azurestorageaccount is defined
+    fail_msg: "'vault_azurestorageaccount' must be defined when vault_backend is set to 'Azure'"
+    quiet: true
+
 
 - name: Vault | Validate | Storage Key
-  debug: 
-    msg: "vault_azurestoragekey is required"
-  when: vault_backend == 'Azure'
-  failed_when: vault_azurestoragekey is not defined
+  assert:
+    that:
+      vault_azurestoragekey is defined
+    fail_msg: "'vault_azurestoragekey' must be defined when vault_backend is set to 'Azure'"
+    quiet: true
 
 - name: Vault | User | Creating vault user group
   group: 
