@@ -4,6 +4,7 @@
       vault_azurestorageaccount is defined
     fail_msg: "'vault_azurestorageaccount' must be defined when vault_backend is set to 'Azure'"
     quiet: true
+  when: vault_backend == 'Azure'
 
 
 - name: Vault | Validate | Storage Key
@@ -12,6 +13,7 @@
       vault_azurestoragekey is defined
     fail_msg: "'vault_azurestoragekey' must be defined when vault_backend is set to 'Azure'"
     quiet: true
+  when: vault_backend == 'Azure'
 
 - name: Vault | User | Creating vault user group
   group: 
