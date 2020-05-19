@@ -45,14 +45,27 @@
     - "{{ root_token_dir_output }}"
   when: vault_backend == 'File'
 
-- name: VAULT | Azure | Write rootkey
+- name: VAULT | Azure | Write rootkey unseal service principal
+  azure_rm_keyvaultsecret:
+    secret_name: rootkey
+    secret_value: "{{ vault_init_parsed.root_token }}"
+    keyvault_uri: "{{ Keyvaulturi }}"
+    client_id: "{{ client_id }}"
+    secret: "{{ secret }}"
+    tenant: "{{ azure_tenantid }}"
+    subscription_id: "{{ azure_subscription }}"
+  become: false
+  delegate_to: localhost
+  when: vault_backend == 'Azure' and client_id is defined
+
+- name: VAULT | Azure | Write rootkey local creds
   azure_rm_keyvaultsecret:
     secret_name: rootkey
     secret_value: "{{ vault_init_parsed.root_token }}"
     keyvault_uri: "{{ Keyvaulturi }}"
   become: false
   delegate_to: localhost
-  when: vault_backend == 'Azure'
+  when: vault_backend == 'Azure' and client_id is not defined
 
 - name: VAULT | File | Write rootkey
   copy:
